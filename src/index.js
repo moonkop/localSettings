@@ -2,6 +2,9 @@ import { defaultSettings } from '../test/index.test'
 function isObject(target) {
     return typeof target === 'object';
 }
+function  getType(obj) {
+  return Object.prototype.toString.call(obj);
+}
 const TYPES = {
     Number: '[object Number]',
     String: '[object String]',
@@ -47,7 +50,7 @@ export function settingManagerInit() {
     }
 
     if (window.SettingManager) {
-        window.SettingManager.init();
+		window.SettingManager.init(defaultSettings);
         return;
     } else {
         let SettingManager = {
@@ -75,9 +78,7 @@ export function settingManagerInit() {
                 if (defaultVal == undefined) {
                     return ;
                 }
-                let getType = function (obj) {
-                    return Object.prototype.toString.call(obj);
-                }
+
                 let isValid = function (correct, test) {
                     let correctType = getType(correct);
                     let testType = getType(test);
@@ -169,7 +170,20 @@ export function settingManagerInit() {
                 if (!isObject(watchedObj)){
                     return watchedObj;
                 }
+				if (watchedObj._value == undefined){ //如果传进来的是一个普通对象 直接返回
+					return watchedObj;
+				}
                 let valueObj = {};
+				Object.keys(watchedObj).map(key=>{
+					if (key.startsWith('_')){
+						return;
+					}
+					if (isObject(watchedObj[key])) {
+						valueObj[key] = this.convertWatchToValue(watchedObj[key]);
+					} else {
+						valueObj[key] = watchedObj[key];
+					}
+				})
                 Object.keys(watchedObj._value).map(key => {
                     if (isObject(watchedObj._value[key])) {
                         valueObj[key] = this.convertWatchToValue(watchedObj._value[key]);
@@ -195,10 +209,11 @@ export function settingManagerInit() {
              */
             convertValueToWatch(valueObj, defaultObj, storageKey) {
                 let that = this;
-                let watchObj = that._convertValueToWatch(valueObj, defaultObj,()=>{that.saveChangedValue(watchObj,storageKey)});
+				let watchObj = that._convertValueToWatchRecursively(valueObj, defaultObj,()=>{that.saveChangedValue(watchObj,storageKey)});
                 return watchObj;
             },
-            _convertValueToWatch (valueObj, defaultObj,changedCallback=()=>{}) {
+
+			_convertValueToWatchRecursively (valueObj,defaultObj,changedCallback=()=>{}) {
                 let that = this;
 
                 if (!defaultObj) { //给下面容错
@@ -207,7 +222,7 @@ export function settingManagerInit() {
                 let watchedObj = { _value: {} };
                 Object.keys(valueObj).map(key => {
                     if (isObject(valueObj[key])) {
-                        watchedObj._value[key] = that._convertValueToWatch(valueObj[key], defaultObj[key],changedCallback); //递归转换为受监视的对象
+						watchedObj._value[key] = that._convertValueToWatchRecursively(valueObj[key], defaultObj[key],changedCallback); //递归转换为受监视的对象
                     } else {
                         watchedObj._value[key] = valueObj[key];
                     }
@@ -220,7 +235,7 @@ export function settingManagerInit() {
 
                             if (valid==undefined) {
                                 if(isObject(value)){
-                                    this._value[key] =that._convertValueToWatch(value,defaultObj[key],changedCallback);
+									this._value[key] =that._convertValueToWatchRecursively(value,defaultObj[key],changedCallback);
                                     debugger;
                                 }else{
                                     this._value[key] = value;
@@ -234,20 +249,30 @@ export function settingManagerInit() {
                 })
                 return watchedObj;
             },
-            init() {
-debugger;
+			/**
+			 * 初始化 默认使用这个文件隔壁的文件作为defaultSettings 也可以改位置 传入别的defaultSettings
+			 * 这个defaultSettings会作为改变数据时类型的标准。
+			 */
+			init(defaultSettings) {
+			//	debugger;
+				let Settings = {}
 let that =this;
 this._values={};
                 Object.keys(defaultSettings).map(key => {
+					let defaultSettingItem = defaultSettings[key];
                     let setting = localStorage.getItem(this.getFullKey(key));
                     try {
                         setting = JSON.parse(setting);
                     } catch (e) {
                         setting = {};
                     }
-                    setting = this.merge(setting, defaultSettings[key]);
+					let newSetting = this.merge(setting, defaultSettingItem);
+					if (JSON.stringify(newSetting) != JSON.stringify(setting)){
+						that.saveChangedValue(newSetting,key);
+					}
+					setting = newSetting;
                     if (isObject(setting)){
-                        setting = this.convertValueToWatch(setting, defaultSettings[key], key);
+						setting = this.convertValueToWatch(setting, defaultSettingItem, key);
                         setting._getValue = this.convertWatchToValue.bind(this, setting);
                         setting._save = this.saveChangedValue.bind(this, setting, key);
                     }
@@ -257,11 +282,11 @@ this._values={};
                             return that._values[key];
                         },
                         set:function(value){
-                            let valid = that.changeIsValid(defaultSettings[key],value);
+							let valid = that.changeIsValid(defaultSettingItem,value);
                             if (valid==undefined) {
                                 if(isObject(value)){
-                                    that._values[key] =that._convertValueToWatch(value,defaultSettings[key]);
-                                    debugger;
+									that._values[key] =that._convertValueToWatchRecursively(value,defaultSettingItem);
+								//	debugger;
                                 }else{
                                     that._values[key] = value;
                                 }
@@ -276,11 +301,10 @@ this._values={};
                     })
                     that._values[key] = setting;
                 });
+				return Settings;
             }
         };
-        let Settings = {}
-        SettingManager.init();
         window.SettingManager = SettingManager;
-        window.Settings = Settings;
+		window.Settings =	SettingManager.init(defaultSettings);
     }
 }

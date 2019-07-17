@@ -20,6 +20,9 @@ export let defaultSettings = {
             num: 123
         }
     },
+  array:[
+    123,456,678
+  ]
 }
 window.isTest = 1;
 let storage = {
@@ -108,7 +111,6 @@ test("write-extra",() => {
     Settings.last_way.a.c = "extraChanged";
     expect(getStorageItem('last_way').a.c).toBe("extraChanged");
     Settings.last_way.a.c = {b: 1,d: '2'};
-    ;
     expect(getStorageItem('last_way').a.c.b).toBe(1);
     expect(getStorageItem('last_way').a.c.d).toBe('2');
 })
@@ -140,3 +142,10 @@ test("write-root",() => {
     expect(getStorageItem('object1').key2.subkey22).toBe(789);
 
 })
+
+test("write-array",()=>{
+  expect(getStorageItem('array')[0]).toBe(123);
+  Settings.array[0] = 111;
+  expect(getStorageItem('array')[0]).toBe(111);
+
+});
